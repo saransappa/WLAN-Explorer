@@ -96,14 +96,14 @@ def disconnectInterface(intf, attempts):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-guid', default=-1,help='GUID of the Wireless Interface')
-    parser.add_argument('-action', default=-1, help='Wireless action to be performed (connect, disconnect, getAllBssidsOfSsid, getAllVisibleBssids, getAllVisibleNetworks, getCurrentConnectionInfo)')
+    parser.add_argument('-action', default=-1, help='Action to be performed (connect, disconnect, getAllBssidsOfSsid, getAllVisibleBssids, getAllVisibleNetworks, getCurrentConnectionInfo, version)')
     parser.add_argument('-ssid', default=-1, help='SSID name')
     parser.add_argument('-bssid', default=-1, help='BSSID of the SSID provided')
     parser.add_argument('-attempts', default=3, help='No.of attempts for connection/disconnection. Default - 3')
     options = parser.parse_args()
 
     # Get interface object from GUID
-    if options.guid == -1:
+    if options.guid == -1 and options.action != 'version':
         print(f'ERROR: An interface GUID must be speicied')
         sys.exit(6)
     
@@ -149,3 +149,5 @@ if __name__ == '__main__':
             sys.exit(9)
 
         connectToBssid(intf=intf, ssid=options.ssid, bssid=options.bssid, attempts=int(options.attempts))
+    elif options.action == 'version':
+        print(0.1)
