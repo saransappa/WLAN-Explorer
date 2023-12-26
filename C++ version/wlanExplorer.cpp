@@ -567,12 +567,55 @@ long getRssi(HANDLE hClient, GUID* pGuid) {
     return rssi;
 }
 
+wstring getPeapXml(wstring username, wstring password) {
+    wstring defaultXml = LR"(<EapHostUserCredentials xmlns="http://www.microsoft.com/provisioning/EapHostUserCredentials" xmlns:eapCommon="http://www.microsoft.com/provisioning/EapCommon" xmlns:baseEap="http://www.microsoft.com/provisioning/BaseEapMethodUserCredentials"><EapMethod><eapCommon:Type>25</eapCommon:Type><eapCommon:AuthorId>0</eapCommon:AuthorId></EapMethod><Credentials xmlns:eapUser="http://www.microsoft.com/provisioning/EapUserPropertiesV1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:baseEap="http://www.microsoft.com/provisioning/BaseEapUserPropertiesV1" xmlns:MsPeap="http://www.microsoft.com/provisioning/MsPeapUserPropertiesV1" xmlns:MsChapV2="http://www.microsoft.com/provisioning/MsChapV2UserPropertiesV1"><baseEap:Eap><baseEap:Type>25</baseEap:Type><MsPeap:EapType><baseEap:Eap><baseEap:Type>26</baseEap:Type><MsChapV2:EapType><MsChapV2:Username>saran</MsChapV2:Username><MsChapV2:Password>welcome123</MsChapV2:Password></MsChapV2:EapType></baseEap:Eap></MsPeap:EapType></baseEap:Eap></Credentials></EapHostUserCredentials>)";
 
+    // Replace default Username 
+    size_t startPos = defaultXml.find(L"saran");
+    size_t replaceCount = 5; // Length of "saran"
+    
+    if (startPos != wstring::npos) {
+        defaultXml.replace(startPos, replaceCount, username);
+    }
+    else {
+        std::cout << "ERROR: Username Substring not found." << std::endl;
+    }
+
+    // Replace default password 
+    startPos = defaultXml.find(L"welcome123");
+    replaceCount = 10; // Length of "welcome123"
+
+    if (startPos != wstring::npos) {
+        defaultXml.replace(startPos, replaceCount, password);
+    }
+    else {
+        std::cout << "ERROR: Password Substring not found." << std::endl;
+    }
+
+    return defaultXml;
+}
+
+void setPeapCredentials(HANDLE hClient,GUID* pGuid, wstring ssid, wstring username, wstring password) {
+    if (username == L"" || password == L"" || ssid == L"") {
+        wprintf(L"ERROR: SSID, Username and Password should be provided for setting PEAP credentials.\n");
+        return;
+    }
+
+    wstring userXml = getPeapXml(username, password);
+    DWORD dwResult = WlanSetProfileEapXmlUserData(hClient, pGuid, ssid.c_str(), 1, userXml.c_str(), NULL);
+    
+    if (dwResult != ERROR_SUCCESS) {
+        wprintf(L"ERROR: WlanSetProfileEapXmlUserData failed with error: %u\n", dwResult);
+    }
+    else {
+        wprintf(L"SUCCESS: PEAP-MSCHAPv2 User credentials are set successfully.");
+    }
+}
 
 void helpDescription() {
-    printf("\nWLAN Explorer v0.2\n\n");
-    printf("SYNTAX: wlanExplorer.exe -interface [INTERFACE_NAME] -action [ACTION] -ssid [SSID_NAME] -bssid [BSSID] -attempts [ATTEMPTS]\n");
-    printf("actions -> connect, disconnect, getAllBssids, getAllSsids, getAllBssidsOfSsid, getCurrentConnectionInfo\n");
+    printf("\nWLAN Explorer v0.3\n\n");
+    printf("SYNTAX: wlanExplorer.exe -interface [INTERFACE_NAME] -action [ACTION] -ssid [SSID_NAME] -bssid [BSSID] -attempts [ATTEMPTS] -username [USERNAME] -password [PASSWORD]\n");
+    printf("actions -> connect, disconnect, getAllBssids, getAllSsids, getAllBssidsOfSsid, getCurrentConnectionInfo, setPeapCredentials\n");
     printf("If BSSID is not provided, Windows OS will choose the BSSID.\n");
     printf("Default value for attempts is 1.\n");
 }
@@ -584,6 +627,8 @@ int wmain(int argc,  wchar_t* argv[])
     wstring action=L"";
     wstring ssid=L"";
     wstring bssid=L"";
+    wstring username = L"";
+    wstring password = L"";
     int attempts = 1;
 
     if (argc == 1) {
@@ -598,8 +643,10 @@ int wmain(int argc,  wchar_t* argv[])
         wstring actionKey    = L"-action";
         wstring ssidKey      = L"-ssid";
         wstring bssidKey     = L"-bssid";
-        wstring attemptKey = L"-attempts";
-        wstring helpKey = L"-help";
+        wstring attemptKey   = L"-attempts";
+        wstring userNameKey  = L"-username";
+        wstring passwordKey  = L"-password";
+        wstring helpKey      = L"-help";
 
         for (int i = 1; i < argc; i+=2) {
             key = argv[i];
@@ -611,6 +658,12 @@ int wmain(int argc,  wchar_t* argv[])
             }
             else if(key == ssidKey && i + 1 < argc) {
                 ssid = argv[i + 1];
+            }
+            else if (key == userNameKey && i + 1 < argc) {
+                username = argv[i + 1];
+            }
+            else if (key == passwordKey && i + 1 < argc) {
+                password = argv[i + 1];
             }
             else if(key == bssidKey && i + 1 < argc) {
                 bssid = argv[i + 1];
@@ -699,9 +752,13 @@ int wmain(int argc,  wchar_t* argv[])
     }
     else if (action == L"connect") {
         bool ssidFound = false;
+
+        // Find the SSID from visible SSIDs map
         for (auto it = networks.begin(); it != networks.end(); it++) {
             if (it->first == ssid) {
                 ssidFound = true;
+
+                // Connect with all BSSIDs as preferred BSSID is BSSID is not provided
                 if (bssid == L"") {
                     connect(hClient, &guid, ssid, it->second, attempts);
                 }
@@ -742,6 +799,9 @@ int wmain(int argc,  wchar_t* argv[])
             cout << it->first << " : " << it->second << endl;
         }
 
+    }
+    else if (action == L"setPeapCredentials") {
+        setPeapCredentials(hClient, &guid, ssid, username, password);
     }
 
     // Close WLAN handle
